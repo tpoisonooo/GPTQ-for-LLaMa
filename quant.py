@@ -26,6 +26,8 @@ class Quantizer(nn.Module):
         trits=False
         ):
         
+        self.scale = torch.zeros_like(self.scale)
+        self.bits = bits
         self.maxq = torch.tensor(2 ** bits - 1)
         self.perchannel = perchannel
         self.sym = sym
@@ -34,7 +36,7 @@ class Quantizer(nn.Module):
         self.grid = grid
         self.maxshrink = maxshrink 
         if trits:
-            self.maxq = torch.tensor(-1) 
+            self.maxq = torch.tensor(-1)
 
     def find_params(self, x, weight=False):
         dev = x.device
