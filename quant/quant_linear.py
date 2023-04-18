@@ -245,41 +245,37 @@ class QuantLinearFunction(torch.autograd.Function):
         return grad_input, None, None, None, None, None, None
     
 class QuantLinear(nn.Module): 
-    def __init__(self, bits, groupsize, infeatures, outfeatures, bias):
+    def __init__(self, infeatures, outfeatures, bias):
         super().__init__()
-        if bits not in [2,4,8]:
-            raise NotImplementedError("Only 2,4,8 bits are supported.")
         self.infeatures = infeatures
         self.outfeatures = outfeatures
         
-        self.register_buffer('bits', torch.tensor(bits, dtype=torch.int32))
-        self.register_buffer('groupsize', torch.tensor(groupsize if groupsize != -1 else infeatures, dtype=torch.int32))
-        
         self.maxq = None
 
-        self.register_buffer('qweight', torch.zeros((infeatures // 32 * self.bits, outfeatures), dtype=torch.int32))
-        self.register_buffer('qzeros', torch.zeros((math.ceil(infeatures / self.groupsize), outfeatures // 32 * self.bits), dtype=torch.int32))
-        self.register_buffer('scales', torch.zeros((math.ceil(infeatures / self.groupsize), outfeatures), dtype=torch.float16))
-        self.register_buffer('g_idx', torch.tensor([i // self.groupsize  for i in range(infeatures)], dtype = torch.int32))
         if bias:
             self.register_buffer('bias', torch.zeros((outfeatures),dtype=torch.float16))
         else:
             self.bias = None
         
-    def pack(self, linear, scales, zeros, g_idx = None, wbits = None, groupsize = None):
+    def pack(self, linear, scales, zeros, g_idx, bits, groupsize):
+        self.register_buffer('bits', torch.tensor(bits, dtype=torch.int32))
+        self.register_buffer('groupsize', torch.tensor(groupsize if groupsize != -1 else self.infeatures, dtype=torch.int32))
 
-        if wbits is not None:
-            self.bits.fill_(wbits) 
-        if groupsize is not None:
-            self.groupsize.fill_(groupsize)
-        self.g_idx = g_idx.clone() if g_idx is not None else self.g_idx
+        self.register_buffer_update('groupsize', torch.tensor(groupsize if groupsize != -1 else self.infeatures, dtype=torch.int32))
         
         bits = self.bits.item()
+        groupsize = self.groupsize.item()
 
+        self.register_buffer('g_idx', torch.tensor([i // groupsize  for i in range(self.infeatures)], dtype = torch.int32))
+        self.g_idx = g_idx.clone() if g_idx is not None else self.g_idx
+        
         scales = scales.t().contiguous()
         zeros = zeros.t().contiguous()
-        scale_zeros = zeros * scales
+        self.register_buffer('scales', torch.zeros_like(scales.half()))
         self.scales = scales.clone().half()
+
+        scale_zeros = zeros * scales
+
         if linear.bias is not None:
             self.bias = linear.bias.clone().half()
             
@@ -301,8 +297,9 @@ class QuantLinear(nn.Module):
             else:
                 raise NotImplementedError("Only 2,4,8 bits are supported.")
                 
-        qweight = qweight.astype(np.int32)
-        self.qweight = torch.from_numpy(qweight) 
+        qweight = torch.from_numpy(qweight.astype(np.int32))
+        self.register_buffer('qweight', torch.zeros_like(qweight))
+        self.qweight = qweight
         
         zeros -= 1;
         zeros = zeros.numpy().astype(np.uint32)
@@ -318,8 +315,9 @@ class QuantLinear(nn.Module):
             else:
                 raise NotImplementedError("Only 2,4,8 bits are supported.")
                 
-        qzeros = qzeros.astype(np.int32)
-        self.qzeros = torch.from_numpy(qzeros) 
+        qzeros = torch.from_numpy(qzeros.astype(np.int32))
+        self.register_buffer('qzeros', torch.zeros_like(qzeros))
+        self.qzeros = qzeros
         
     def forward(self, x):
         out_shape = x.shape[:-1] + (self.outfeatures, )
@@ -333,7 +331,7 @@ class QuantLinear(nn.Module):
         out = out + self.bias if self.bias is not None else out  
         return out.reshape(out_shape)
         
-def make_quant_linear(module, names, bits=4, groupsize=-1, name=''):
+def make_quant_linear(module, names, name=''):
     if isinstance(module, QuantLinear):
         return
     for attr in dir(module):
@@ -341,9 +339,9 @@ def make_quant_linear(module, names, bits=4, groupsize=-1, name=''):
         name1 = name + '.' + attr if name != '' else attr
         if name1 in names:
             delattr(module, attr)
-            setattr(module, attr, QuantLinear(bits, groupsize, tmp.in_features, tmp.out_features, tmp.bias is not None))
+            setattr(module, attr, QuantLinear(tmp.in_features, tmp.out_features, tmp.bias is not None))
     for name1, child in module.named_children():
-        make_quant_linear(child, names, bits, groupsize, name + '.' + name1 if name != '' else name1)
+        make_quant_linear(child, names, name + '.' + name1 if name != '' else name1)
         
 def autotune_warmup_linear(model, transpose = False):
     """

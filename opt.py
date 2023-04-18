@@ -229,13 +229,13 @@ def opt_eval(model, testenc, dev):
 def opt_pack(model, quantizers, wbits, groupsize):
     layers = find_layers(model)
     layers = {n: layers[n] for n in quantizers}
-    quant.make_quant_linear(model, quantizers, wbits, groupsize)
+    quant.make_quant_linear(model, quantizers)
     qlayers = find_layers(model, [quant.QuantLinear])
     print('Packing ...')
     for name in qlayers:
         print(name)
         quantizers[name],scale,zero,g_idx = quantizers[name]
-        qlayers[name].pack(layers[name], scale, zero, g_idx)
+        qlayers[name].pack(layers[name], scale, zero, g_idx, wbits, groupsize)
     print('Done.')
     return model
 
@@ -258,7 +258,7 @@ def load_quant(model, checkpoint, wbits, groupsize = -1, eval = True,warmup_auto
     for name in ['model.decoder.project_out', 'model.decoder.project_in', 'lm_head']:
         if name in layers:
             del layers[name]
-    quant.make_quant_linear(model, layers, wbits, groupsize)
+    quant.make_quant_linear(model, layers)
     
     del layers
 

@@ -23,7 +23,7 @@ def get_llama(model):
     model.seqlen = 2048
     return model
 
-def load_quant(model, checkpoint, fused_mlp = True, eval=True, warmup_autotune = True):
+def load_quant(model, checkpoint, fused_mlp = False, eval=True, warmup_autotune = True):
     from transformers import LlamaConfig, LlamaForCausalLM 
     config = LlamaConfig.from_pretrained(model)
     def noop(*args, **kwargs):
@@ -77,14 +77,14 @@ if __name__ == '__main__':
         'model', type=str,
         help='llama model to load'
     )
-    parser.add_argument(
-        '--wbits', type=int, default=16, choices=[2, 3, 4, 8, 16],
-        help='#bits to use for quantization; use 16 for evaluating base model.'
-    )
-    parser.add_argument(
-        '--groupsize', type=int, default=-1,
-        help='Groupsize to use for quantization; default uses full row.'
-    )
+    # parser.add_argument(
+    #     '--wbits', type=int, default=16, choices=[2, 3, 4, 8, 16],
+    #     help='#bits to use for quantization; use 16 for evaluating base model.'
+    # )
+    # parser.add_argument(
+    #     '--groupsize', type=int, default=-1,
+    #     help='Groupsize to use for quantization; default uses full row.'
+    # )
     parser.add_argument(
         '--load', type=str, default='',
         help='Load quantized model.'

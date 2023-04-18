@@ -92,8 +92,8 @@ def llama_sequential(model, dataloader, dev):
 
     quantizers = {}
     observer = Observer()
-    for i in range(len(layers)):
-    # for i in range(1):
+    # for i in range(len(layers)):
+    for i in range(1):
         layer = layers[i].to(dev)
         full = find_layers(layer)
         if args.true_sequential:
@@ -166,7 +166,7 @@ def llama_sequential(model, dataloader, dev):
             print('Optimizing {} {} ..'.format(name, layerid))
             for wbits, groupsize in conditions:
 
-                if error < 500:
+                if error < 100:
                     # if error small enough, skip
                     break
 
@@ -292,7 +292,10 @@ def llama_pack(model, quantizers):
     for name in qlayers:
         print(name)
         quantizers[name],scale,zero,g_idx,wbits,groupsize = quantizers[name]
-        qlayers[name].pack(layers[name], scale, zero, g_idx=g_idx, wbits=wbits, groupsize=groupsize)
+        import pdb
+        pdb.set_trace()
+
+        qlayers[name].pack(linear=layers[name], scales=scale, zeros=zero, g_idx=g_idx, bits=wbits, groupsize=groupsize)
     print('Done.')
     return model
 

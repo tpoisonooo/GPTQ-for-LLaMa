@@ -213,7 +213,7 @@ def load_quant(model, checkpoint, wbits, groupsize, pre_layer, fused_mlp = True,
     for name in ['lm_head']:
         if name in layers:
             del layers[name]
-    quant.make_quant_linear(model, layers, wbits, groupsize)
+    quant.make_quant_linear(model, layers)
 
     print('Loading model ...')
     load_checkpoint_in_model(model, checkpoint, dtype='float16')
