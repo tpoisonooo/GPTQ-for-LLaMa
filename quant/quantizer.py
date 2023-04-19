@@ -10,8 +10,8 @@ import math
 #     return scale * (q - zero)
 def quantize(x, scale, zero, maxq):
     # 对称量化
-    q = torch.clamp(torch.round(x / scale), -maxq, maxq)
-    ret = scale * q
+    q = torch.clamp(torch.floor(x / scale), -8, 7)
+    ret = scale * (q + 0.5)
     return ret
 
 class Quantizer(nn.Module):
@@ -29,7 +29,7 @@ class Quantizer(nn.Module):
         trits=False
         ):
         
-        self.maxq = torch.tensor(2 ** (bits - 1) - 1)
+        self.maxq = torch.tensor(2 ** (bits - 1) - 1 + 0.5)
         self.perchannel = perchannel
         self.sym = sym
         self.mse = mse
@@ -44,7 +44,7 @@ class Quantizer(nn.Module):
     
     def update_minmax(self, x):
         dev = x.device
-
+        
         xmin = torch.min(x)
         xmax = torch.max(x)
         if self.min is None:
